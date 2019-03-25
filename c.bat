@@ -1,0 +1,1 @@
+cl toftp.cpp ftp.cpp pbar.cpp user32.lib shell32.lib /EHsc

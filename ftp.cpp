@@ -128,10 +128,14 @@ int ftpUpload(wchar_t *srcFileName, wchar_t *dstFileName, wchar_t *dstDirectory 
 		_ftpErrorCode = -1;
 	} else {
 		if (validateDirectories(_remoteAddr) >= 0) {
+			//MessageBoxW( NULL, srcFileName, L"SRC FILE NAME", MB_OK );					
+			//MessageBoxW( NULL, _remoteAddr, L"REMOTE ADDR", MB_OK );		
 			DWORD status = FtpPutFileW(_hFtpSession, srcFileName, _remoteAddr, FTP_TRANSFER_TYPE_BINARY, 0);
 			if (!status) {
 				_ftpErrorCode = -1;
 			}
+		} else {
+			_ftpErrorCode = -1;			
 		}
 	}
 	return _ftpErrorCode;
@@ -249,7 +253,7 @@ static int validateDirectories( wchar_t *remoteAddr ) {
 			HINTERNET hFtpSession = InternetConnectW(_hInternet, _server, 
 				INTERNET_DEFAULT_FTP_PORT, _user, _password, INTERNET_SERVICE_FTP, INTERNET_FLAG_PASSIVE, 0);
 			if (hFtpSession) {
-				bool status;
+				bool status=true;
 				if (FtpFindFirstFileW(hFtpSession, remoteDir, &findFileData, 0, NULL) == NULL) { // The directory wasn't found...
 					status = FtpCreateDirectoryW(hFtpSession, remoteDir);
 				}

@@ -30,6 +30,7 @@ static wchar_t _server[PROFILE_STRING_BUFFER + 1];
 static wchar_t _directory[PROFILE_STRING_BUFFER + 2]; // +2 to append slash if required
 static wchar_t _user[PROFILE_STRING_BUFFER + 1];
 static wchar_t _password[PROFILE_STRING_BUFFER + 1];
+static char _passwordm[PROFILE_STRING_BUFFER + 1];
 static wchar_t _mode[PROFILE_STRING_BUFFER + 1];
 static int _port = -1;
 
@@ -51,7 +52,7 @@ static void writeErrorIntoIniFile(wchar_t *sectionName, const wchar_t *errorText
 static void writeResultIntoIniFile(wchar_t *sectionName, const wchar_t *errors, std::vector<std::wstring>& errorTexts);
 static int getTotalNumberOfFilesToTransfer( void );
 
-static int decrypt(wchar_t *src, wchar_t *dst);
+static int decrypt(char *src, wchar_t *dst);
 
 static wchar_t **_argList = nullptr;
 
@@ -59,7 +60,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 {
 	int exitStatus = -1;
 	int status;
-
+	
 	int argCount;
 	_argList = CommandLineToArgvW(GetCommandLineW(), &argCount);
 	if (_argList == nullptr || argCount < 3) {
@@ -118,8 +119,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 		wchar_t remoteDir[PROFILE_STRING_BUFFER + 2]; // A remote directory to read file from / write files to
 		status = GetPrivateProfileStringW(_connections[iconn], L"RemoteDir", NULL, remoteDir, PROFILE_STRING_BUFFER, _argList[1]);
 		if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
-			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO READ REMOTE DIRECTORY");
-			continue;
+			remoteDir[0] = L'\x0';
+			// writeErrorIntoIniFile(_connections[iconn], L"FAILED TO READ REMOTE DIRECTORY");
+			// continue;
 		}
 		appendDirectoryNameWithEndingSlash(remoteDir, L'/');
 
@@ -142,7 +144,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 		}
 
 		wchar_t passwordDecrypted[PROFILE_STRING_BUFFER + 1];
-		status = decrypt(_password, passwordDecrypted);
+		status = decrypt(_passwordm, passwordDecrypted);
 		if (status == -1) {
 			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO DECRYPT THE PASSWORD");
 			continue;
@@ -157,8 +159,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 			wcscat(fullRemoteDir, &remoteDir[1]);
 		}
 
-		
-		int status = ftpSetCredentials(_server, _user, passwordDecrypted, _port);
+				int status = ftpSetCredentials(_server, _user, passwordDecrypted, _port);
 		if (status < 0) {
 			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO SET CREDENTIALS");
 			continue;
@@ -173,7 +174,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO PARSE FILE NAMES OR THERE IS NONE");
 			continue;
 		}
-
+			
 		wchar_t errors[MAX_FILES_NUMBER + 1];
 		for (int ifile = 0; ifile < _filesNumber; ifile++) {
 			errors[ifile] = L'-';
@@ -308,10 +309,13 @@ int readConnection(wchar_t *fileName, wchar_t *connectionName)
 	if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
 		return -1;
 	}
-	status = GetPrivateProfileStringW(connectionName, L"Password", NULL, _password, PROFILE_STRING_BUFFER, fileName);
+	status = GetPrivateProfileStringW(connectionName, L"Password2", NULL, _password, PROFILE_STRING_BUFFER, fileName);
 	if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
 		return -1;
 	}
+	char default_char = '?';
+	WideCharToMultiByte(CP_ACP, 0, _password, -1, _passwordm, PROFILE_STRING_BUFFER, &default_char, NULL);
+	
 	status = GetPrivateProfileStringW(connectionName, L"Mode", NULL, _mode, PROFILE_STRING_BUFFER, fileName);
 	if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
 		return -1;
@@ -455,27 +459,39 @@ static void writeResultIntoIniFile(wchar_t *sectionName, const wchar_t *errors, 
 	WritePrivateProfileStringW(sectionName, L"Reason", errorTextsCombined.c_str(), _argList[1]);
 }
 
-static int decrypt(wchar_t *src, wchar_t *dst) {
-	char symbolBuffer[3];
 
-	int passwordLength = wcslen(src);
-	if (passwordLength % 2) {
+static int decrypt(char *src, wchar_t *dst) {
+    const char *xorkey1b= "_23ken08SPIDER1970&%_23ken08SPIDER1970&%\0";
+    int xorkey1bLen = strlen(xorkey1b);
+    wchar_t *xorkey = (wchar_t *)xorkey1b;
+    int xorkeyLen = (xorkey1bLen-1)/2;
+
+	int passwordLength = strlen(src);
+	if (passwordLength % 4) {
 		return -1;
 	}
-	int halfLength = passwordLength / 2;
 
-	symbolBuffer[2] = L'\x0';
-	for (int iSrc = 0, iDst = 0; iSrc < passwordLength; iSrc += 2, iDst++) {
-		symbolBuffer[0] = src[iSrc];
+	char symbolBuffer[5];
+	symbolBuffer[4] = '\x0';
+	
+	for (int iSrc = 0, iDst = 0; iSrc < passwordLength ; iSrc += 4, iDst++) {
+		symbolBuffer[0] = src[iSrc + 0];
 		symbolBuffer[1] = src[iSrc + 1];
-		int dec;
-		int status = sscanf(symbolBuffer, "%X", &dec);
+		symbolBuffer[2] = src[iSrc + 2];
+		symbolBuffer[3] = src[iSrc + 3];
+		unsigned short dec;
+		int status = sscanf(symbolBuffer, "%hx", &dec);
+		//cout << symbolBuffer << ", dec=" << dec << endl;
 		if (status != 1) {
 			return -1;
 		}
-		dst[iDst] = (wchar_t)(dec ^ 0x00FF);
+		if( iDst < xorkeyLen ) {
+			dst[iDst] = (wchar_t)(dec ^ (unsigned short)xorkey[iDst]);			
+		} else {
+			dst[iDst] = (wchar_t)(dec);						
+		}
 	}
-	dst[halfLength] = L'\x0';
+	dst[passwordLength/4] = L'\x0';
 	return 0;
 }
 
