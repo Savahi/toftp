@@ -28,6 +28,9 @@ static HINTERNET _hInternet = NULL;
 static HINTERNET _hFtpSession = NULL;
 
 static int validateDirectories(wchar_t *);
+static bool dstDirIsValidated=false;
+
+static bool findCharsInString(wchar_t* str, wchar_t *chars);
 
 static int createRemoteAddr(wchar_t *fileName, wchar_t *directory, wchar_t *server, wchar_t *user, wchar_t *password)
 {
@@ -119,7 +122,7 @@ int ftpDelete(wchar_t *dstFileName, wchar_t *dstDirectory )
 }
 
 
-int ftpUpload(wchar_t *srcFileName, wchar_t *dstFileName, wchar_t *dstDirectory ) 
+int ftpUpload(wchar_t *srcFileName, wchar_t *dstFileName, wchar_t *dstDirectory, bool createDstDirIfNotExists)
 {
 	_ftpErrorCode = 0;
 	_winInetErrorCode = 0;
@@ -127,7 +130,18 @@ int ftpUpload(wchar_t *srcFileName, wchar_t *dstFileName, wchar_t *dstDirectory 
 	if (createRemoteAddr(dstFileName, dstDirectory, NULL, NULL, NULL) == -1) {
 		_ftpErrorCode = -1;
 	} else {
-		if (validateDirectories(_remoteAddr) >= 0) {
+		int directoryValidated = false;
+		if (!createDstDirIfNotExists && !findCharsInString(dstFileName, L"/\\")) {
+			directoryValidated = true;
+		} else if( dstDirIsValidated && !findCharsInString(dstFileName, L"/\\") ) {
+			directoryValidated = true;
+		}
+		else {
+			if (validateDirectories(_remoteAddr) >= 0) {
+				directoryValidated = true;
+			}
+		}
+		if( directoryValidated ) {
 			//MessageBoxW( NULL, srcFileName, L"SRC FILE NAME", MB_OK );					
 			//MessageBoxW( NULL, _remoteAddr, L"REMOTE ADDR", MB_OK );		
 			DWORD status = FtpPutFileW(_hFtpSession, srcFileName, _remoteAddr, FTP_TRANSFER_TYPE_BINARY, 0);
@@ -190,6 +204,8 @@ int ftpSetCredentials(wchar_t *server, wchar_t *user, wchar_t *password, int por
 int ftpInit(void) {
 	_ftpErrorCode = 0;
 	_winInetErrorCode = 0;
+
+	dstDirIsValidated = false; 
 
 	_hInternet = InternetOpenW(NULL, INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
 	if (!_hInternet) {
@@ -269,5 +285,23 @@ static int validateDirectories( wchar_t *remoteAddr ) {
 			}
 		}
 	}
+
+	if( returnValue == 0 ) {
+		dstDirIsValidated = true;
+	}
 	return returnValue;
+}
+
+static bool findCharsInString(wchar_t* str, wchar_t *chars)
+{
+	size_t strLen = wcslen(str);
+	size_t charsLen = wcslen(chars);
+	for (unsigned int s = 0; s < strLen; s++) {
+		for (unsigned int c = 0; c < charsLen; c++) {
+			if (str[s] == chars[c]) {
+				return true;
+			}
+		}
+	}
+	return false;
 }

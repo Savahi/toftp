@@ -11,9 +11,10 @@
 
 // Uploads a file to a server. Returns negative value if failed, 0 if ok.
 // The connection credentials must be set earlier...
-int ftpUpload( wchar_t *srcFileName,					// A file to transfer to a server
-	wchar_t *dstFileName, 								// A name for the file when it is stored at the server
-	wchar_t *dstDirectory); 							// A directory to transfer the file into. For Linux servers starts with '/'
+int ftpUpload(wchar_t *srcFileName,					// A file to transfer to a server
+	wchar_t *dstFileName, 							// A name for the file when it is stored at the server
+	wchar_t *dstDirectory,  						// A directory to transfer the file into. For Linux servers starts with '/'
+	bool createDstDirIfNotExist=false);				// Create destination directory if not exists
 
 // Downloads a file from a server. Returns negative value if failed, 0 if ok.
 // The connection credentials must be set earlier...

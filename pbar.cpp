@@ -2,7 +2,7 @@
 #include <commctrl.h>
 #pragma comment(lib, "Comctl32.lib")
 
-HWND pbarCreate(HINSTANCE hInstance, int stepsNumber)
+HWND pbarCreate(HINSTANCE hInstance, int stepsNumber, HWND parent)
 {
 	HWND hwndPB = NULL;    // Handle of progress bar.
 
@@ -18,8 +18,8 @@ HWND pbarCreate(HINSTANCE hInstance, int stepsNumber)
 	int vm = 40;
 	int top = cyFullScreen * vm / 100;
 
-	hwndPB = CreateWindowEx(0, PROGRESS_CLASS, (LPTSTR)"SPIDER PROJECT", WS_VISIBLE,
-		left, top, width, SM_CYSMCAPTION + cyHScroll, NULL, (HMENU)0, hInstance, NULL);
+	hwndPB = CreateWindowExA(0, PROGRESS_CLASS, (LPTSTR)"SPIDER PROJECT", WS_VISIBLE,
+		left, top, width, SM_CYSMCAPTION + cyHScroll, parent, (HMENU)0, hInstance, NULL);
 
 	SendMessage(hwndPB, PBM_SETRANGE, 0, MAKELPARAM(0, stepsNumber));
 

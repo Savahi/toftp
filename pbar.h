@@ -3,7 +3,7 @@
 #ifndef __PBAR_H
 #define __PBAR_H
 
-HWND pbarCreate(HINSTANCE hInstance, int stepsNumber);
+HWND pbarCreate(HINSTANCE hInstance, int stepsNumber, HWND parent=0);
 
 void pbarStep(HWND hwndPB);
 

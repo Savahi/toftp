@@ -42,7 +42,7 @@ static int _filesNumber = 0;
 static int readFileNames(wchar_t *fileNamesBuffer);
 
 static void deleteSpacesFromString(wchar_t* str);
-static bool isEmptyString(wchar_t* str, bool comma_is_empty_char);
+static bool isEmptyString(wchar_t* str, bool comma_is_empty_char=false);
 static void deleteCharFromString(wchar_t* str, int pos);
 static void substituteCharInString(wchar_t*str, wchar_t charToFind, wchar_t charToReplaceWith);
 static wchar_t *getPtrToFileName(wchar_t* path);
@@ -80,19 +80,24 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 	}
 	int filesTransferedCounter = 0;
 
-	HWND hProgressBar = pbarCreate(hInstance, totalFilesToTransfer+1);
+	HWND progressBarParent=NULL;
+	int handle = GetPrivateProfileIntW(_connections[0], L"Handle", 0, _argList[1]);
+	if( handle != 0 ) {
+		progressBarParent = (HWND)handle;
+	}
+	HWND hProgressBar = pbarCreate(hInstance, totalFilesToTransfer+1, progressBarParent);
 	pbarStep(hProgressBar);
 
 	for (int iconn = 0; iconn < _connectionsNumber; iconn++) { // Iterating through transfer (connection) sections...
 		wchar_t action[PROFILE_STRING_BUFFER + 1];
 		status = GetPrivateProfileStringW(_connections[iconn], L"Action", NULL, action, PROFILE_STRING_BUFFER, _argList[1]);
 		if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
-			writeErrorIntoIniFile(_connections[iconn], L"UNKNOWN ACTION");
+			writeErrorIntoIniFile(_connections[iconn], L"Unknown action");
 			continue;
 		}
 
 		if (readConnection(_argList[2], _connections[iconn]) == -1) { // Reading details of the connection
-			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO READ CONNECTION CREDENTIALS");
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to read connection credentials");
 			continue;
 		}
 
@@ -100,10 +105,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 		if (wcscmp(_mode, L"FTP") == 0) {
 			transferMode = 1;
 		} else if ((wcscmp(_mode, L"SSH") == 0) || (wcscmp(_mode, L"SFTP") == 0)) {
-			writeErrorIntoIniFile(_connections[iconn], L"SSH PROTOCOL IS NOT SUPPORTED");
+			writeErrorIntoIniFile(_connections[iconn], L"SSH protocol is not supported");
 			continue;
 		} else {
-			writeErrorIntoIniFile(_connections[iconn], L"THIS TRANSFER MODE IS NOT SUPPORTED");
+			writeErrorIntoIniFile(_connections[iconn], L"This transfer mode is not supported");
 			continue;
 		}
 
@@ -116,19 +121,27 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 		}
 		appendDirectoryNameWithEndingSlash(localDir, L'\\');
 
+		bool remoteDirIsEmpty = false;
 		wchar_t remoteDir[PROFILE_STRING_BUFFER + 2]; // A remote directory to read file from / write files to
 		status = GetPrivateProfileStringW(_connections[iconn], L"RemoteDir", NULL, remoteDir, PROFILE_STRING_BUFFER, _argList[1]);
-		if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
+		if (status >= PROFILE_STRING_BUFFER - 2) {
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to read remote directory");
+			continue;
+		}
+		if (status <= 0 ) {
 			remoteDir[0] = L'\x0';
-			// writeErrorIntoIniFile(_connections[iconn], L"FAILED TO READ REMOTE DIRECTORY");
-			// continue;
+			remoteDirIsEmpty = true;
+		}
+		else if (isEmptyString(remoteDir)) {
+			remoteDir[0] = L'\x0';
+			remoteDirIsEmpty = true;
 		}
 		appendDirectoryNameWithEndingSlash(remoteDir, L'/');
 
 		wchar_t fileNamesBuffer[PROFILE_STRING_BUFFER + 1]; // A buffer to read the list of files into
 		status = GetPrivateProfileStringW(_connections[iconn], L"FileNames", NULL, fileNamesBuffer, PROFILE_STRING_BUFFER, _argList[1]);
 		if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
-			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO READ FILE NAMES");
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to read file names");
 			continue;
 		}
 
@@ -146,7 +159,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 		wchar_t passwordDecrypted[PROFILE_STRING_BUFFER + 1];
 		status = decrypt(_passwordm, passwordDecrypted);
 		if (status == -1) {
-			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO DECRYPT THE PASSWORD");
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to decrypt password");
 			continue;
 		}
 
@@ -159,19 +172,19 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 			wcscat(fullRemoteDir, &remoteDir[1]);
 		}
 
-				int status = ftpSetCredentials(_server, _user, passwordDecrypted, _port);
+		int status = ftpSetCredentials(_server, _user, passwordDecrypted, _port);
 		if (status < 0) {
-			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO SET CREDENTIALS");
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to set credentials");
 			continue;
 		}
 		status = ftpInit();
 		if (status < 0) {
-			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO LOGIN");
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to login");
 			continue;
 		}
 
 		if (readFileNames(fileNamesBuffer) <= 0) {
-			writeErrorIntoIniFile(_connections[iconn], L"FAILED TO PARSE FILE NAMES OR THERE IS NONE");
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to parse file names or there are none");
 			continue;
 		}
 			
@@ -193,7 +206,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 				substituteCharInString(_fileNames[ifile], '\\', '/');
 
 				int error;
-				status = ftpUpload(srcPath, fileName, fullRemoteDir);
+				status = ftpUpload(srcPath, fileName, fullRemoteDir, !remoteDirIsEmpty);
 				ftpGetLastError(&error, NULL, NULL);
 				errors[ifile] = (status == 0) ? L'+' : L'-';
 				errorTexts.push_back(_errorMessages.find(error)->second);
@@ -365,11 +378,14 @@ static void substituteCharInString(wchar_t*str, wchar_t charToFind, wchar_t char
 static bool isEmptyString(wchar_t* str, bool comma_is_empty_char)
 {
 	for (unsigned int i = 0; i < wcslen(str); i++) {
-		if (str[i] != L' ' && str[i] != L'\r' && str[i] != L'\n' && (str[i] != L',' && !comma_is_empty_char)) {
-			return true;
+		if (str[i] != L' ' && str[i] != L'\r' && str[i] != L'\n' ) {
+			return false;
+		}
+		if( str[i] == L',' && !comma_is_empty_char) {
+			return false;
 		}
 	}
-	return false;
+	return true;
 }
 
 static void deleteCharFromString(wchar_t* str, int pos)
