@@ -12,8 +12,13 @@
 #include "pbar.h"
 
 std::map<int, std::wstring> _errorMessages = {
-	{ 0, L"" }, { -1, L"Unknown error"}, { -2, L"Failed to read local file" },
-	{ -3, L"Failed to read remote file" }, { -4, L"Failed to write local file" }, { -5, L"Failed to write remote file" }
+	{ 0, L"" }, { -1, L"Unknown error"}, 
+	{ FTP_ERROR_FAILED_TO_OPEN_INTERNET, L"Failed to open connection. The Internet is unavailable?" }, 
+	{ FTP_ERROR_FAILED_TO_CONNECT, L"Failed to connect to server. Please ensure the host address, login, password and port are set correctly." }, 	
+	{ FTP_ERROR_FAILED_TO_READ_LOCAL, L"Failed to read local file" },
+	{ FTP_ERROR_FAILED_TO_READ_REMOTE, L"Failed to read remote file" }, 
+	{ FTP_ERROR_FAILED_TO_WRITE_LOCAL, L"Failed to write local file" }, 
+	{ FTP_ERROR_FAILED_TO_WRITE_REMOTE, L"Failed to write remote file" }
 };
 
 #define CONNECTION_NAMES_BUFFER 2000
@@ -60,7 +65,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 {
 	int exitStatus = -1;
 	int status;
-	
+
 	int argCount;
 	_argList = CommandLineToArgvW(GetCommandLineW(), &argCount);
 	if (_argList == nullptr || argCount < 3) {
@@ -71,6 +76,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 	if (status <= 0) {
 		goto lab_exit;
 	}
+	
 	// The *_connections[] array is initialized now with connection names, the _connectionsNumber variable stores the number of connections read.
 
 	int totalFilesToTransfer = getTotalNumberOfFilesToTransfer();
@@ -80,8 +86,17 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 	}
 	int filesTransferedCounter = 0;
 
+	status = readConnections(_argList[1]);
+
 	HWND progressBarParent=NULL;
-	int handle = GetPrivateProfileIntW(_connections[0], L"Handle", 0, _argList[1]);
+	int handle=0;
+	if ( argCount >= 4 ) {
+		status = swscanf( _argList[3], L"%d", &handle );
+		if( status != 1 ) {
+			handle = 0;
+		}
+	} 
+	// int handle = GetPrivateProfileIntW(_connections[0], L"Handle", 0, _argList[1]);
 	if( handle != 0 ) {
 		progressBarParent = (HWND)handle;
 	}
@@ -179,12 +194,15 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, char* cmdLine
 		}
 		status = ftpInit();
 		if (status < 0) {
-			writeErrorIntoIniFile(_connections[iconn], L"Failed to login");
+			//wchar_t b[1000];
+			//wsprintfW( b, L"status=%d", status);
+			//MessageBoxW(NULL, b, L"ERROR", MB_OK );
+			writeErrorIntoIniFile(_connections[iconn], _errorMessages.find(status)->second.c_str());
 			continue;
 		}
 
 		if (readFileNames(fileNamesBuffer) <= 0) {
-			writeErrorIntoIniFile(_connections[iconn], L"Failed to parse file names or there are none");
+			writeErrorIntoIniFile(_connections[iconn], L"Failed to parse file names to transfer or there are none");
 			continue;
 		}
 			
@@ -333,7 +351,8 @@ int readConnection(wchar_t *fileName, wchar_t *connectionName)
 	if (status <= 0 || status >= PROFILE_STRING_BUFFER - 2) {
 		return -1;
 	}
-	//_port = GetPrivateProfileIntW(connectionName, L"Port", -1, fileName);
+	_port = GetPrivateProfileIntW(connectionName, L"Port", -1, fileName);
+	
 	return 0;
 }
 

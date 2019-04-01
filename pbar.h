@@ -5,6 +5,8 @@
 
 HWND pbarCreate(HINSTANCE hInstance, int stepsNumber, HWND parent=0);
 
+void pbarSetStepsNumber( HWND hwndPB, int stepsNumber );
+
 void pbarStep(HWND hwndPB);
 
 void pbarDestroy(HWND hwndPB);

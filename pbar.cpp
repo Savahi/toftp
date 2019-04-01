@@ -25,11 +25,17 @@ HWND pbarCreate(HINSTANCE hInstance, int stepsNumber, HWND parent)
 
 	SendMessage(hwndPB, PBM_SETSTEP, (WPARAM)1, 0);
 
+	UpdateWindow(hwndPB); 		// To redraw immediately
+
 	return hwndPB;
 }
 
 void pbarStep(HWND hwndPB) {
 	SendMessage(hwndPB, PBM_STEPIT, 0, 0);
+}
+
+void pbarSetStepsNumber( HWND hwndPB, int stepsNumber ) {
+	SendMessage(hwndPB, PBM_SETRANGE, 0, MAKELPARAM(0, stepsNumber));
 }
 
 void pbarDestroy(HWND hwndPB) {
